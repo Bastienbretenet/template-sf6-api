@@ -35,7 +35,7 @@ Pour plus d'informations sur les commandes Docker vous pouvez consulter leur [do
 `make composer-install`
 
 5. Générez la paire de clés JWT Lexik :
-`make start`
+`make lexik_jwt`
 
 6. Accédez à l'application à l'adresse suivante : [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
 
