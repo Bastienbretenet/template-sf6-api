@@ -1,0 +1,69 @@
+image: php:8.1
+
+services:
+    - name: mysql:5.7
+      alias: db_api_project
+
+variables:
+    MYSQL_DATABASE: api_project_test
+    MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+
+cache: 
+    paths:
+        - project/vendor/
+before_script:
+    - cd project/
+    - apt-get update && apt-get install -y git unzip libzip-dev default-mysql-client default-libmysqlclient-dev
+    - echo "memory_limit=-1" > /usr/local/etc/php/conf.d/memory-limit.ini
+    - curl -sSk https://getcomposer.org/installer | php -- --disable-tls && mv composer.phar /usr/local/bin/composer
+    - curl -sS https://get.symfony.com/cli/installer | bash && mv /root/.symfony5/bin/symfony /usr/local/bin/symfony
+    - docker-php-ext-install pdo_mysql zip
+    - composer install
+stages: 
+    - security
+    - cs
+    - tests
+# Security 
+check_vulnerabilities:
+    stage: security
+    script: 
+        - symfony check:security
+    allow_failure: false
+# CS 
+lint:
+    stage: cs
+    script: 
+        - symfony console lint:yaml config --parse-tags
+        - symfony console lint:twig templates --env=prod
+        - symfony console lint:container --no-debug
+        - symfony console doctrine:schema:validate --skip-sync -vvv --no-interaction
+    allow_failure: false
+php_stan:
+    stage: cs
+    script: 
+        - composer require phpstan/phpstan
+        - composer require phpstan/extension-installer
+        - composer require phpstan/phpstan-symfony
+        - ./vendor/bin/phpstan analyse --memory-limit 1G
+    allow_failure: false
+php_cs_fixer: 
+    stage: cs
+    script :
+        - composer require friendsofphp/php-cs-fixer
+        - ./vendor/bin/php-cs-fixer fix --dry-run
+    allow_failure: false
+# Tests
+php_unit: 
+    stage: tests
+    script:
+        - php bin/console d:d:d --force --if-exists --env=test
+        - php bin/console d:d:c --env=test
+        - php bin/console d:m:m --no-interaction --env=test
+        - php bin/console d:f:l --no-interaction --env=test
+        - php bin/console lexik:jwt:generate-keypair
+        - php bin/phpunit --log-junit report.xml
+    allow_failure: false
+    artifacts:
+        when: always
+        reports: 
+            junit: project/report.xml
